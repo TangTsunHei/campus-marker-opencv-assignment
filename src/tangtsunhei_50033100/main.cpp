@@ -43,23 +43,26 @@ struct FrameResult {
 
 cv::Point pixelPoint(const cv::Point2f& point) {
     return {cvRound(point.x), cvRound(point.y)};
-}
+}  
+//用于将浮点值point坐标转换成整型point坐标，方便后续函数使用
 
 void drawRotatedRect(cv::Mat& image, const cv::RotatedRect& rectangle,
                      const cv::Scalar& color, int thickness = 2) {
     cv::Point2f vertices[4];
-    rectangle.points(vertices);
+    rectangle.points(vertices);//points为rotatedrect内置函数，通过rotatedrect的成员变量计算四个顶点的坐标
     for (int i = 0; i < 4; ++i) {
         cv::line(image, pixelPoint(vertices[i]), pixelPoint(vertices[(i + 1) % 4]),
                  color, thickness, cv::LINE_AA);
     }
 }
+//根据输入图像绘制旋转矩形框，rotatedrect中有三个成员变量，center,angle,size(宽高)
+
 bool makeLightBar(const std::vector<cv::Point>& contour, LightBar& bar) {
     if (cv::contourArea(contour) < 15.0) {
-        return false;
+        return false;   //计算轮廓面积排除较小轮廓，避免噪点误判成待选灯条
     }
 
-    const cv::RotatedRect rectangle = cv::minAreaRect(contour);
+    const cv::RotatedRect rectangle = cv::minAreaRect(contour);//返回contour(四个顶点)最小外接矩形
     const float length = std::max(rectangle.size.width, rectangle.size.height);
     const float width = std::min(rectangle.size.width, rectangle.size.height);
     // 灯条偶尔会在二值图中变亮、变粗；保留长宽比至少 1.9 的区域，
@@ -82,12 +85,12 @@ bool makeLightBar(const std::vector<cv::Point>& contour, LightBar& bar) {
     }
     if (longest_edge.y < 0.0F) {
         longest_edge *= -1.0F;
-    }
-    const cv::Point2f axis = longest_edge * (1.0F / std::sqrt(longest_squared));
-    const float angle_degrees = std::atan2(axis.x, axis.y) * 180.0F / CV_PI;
+    }//保证所有计算出来的最长边（向量）均指向图片下方，统一指向（opencv图像坐标有点在左上角向下y增大）
+    const cv::Point2f axis = longest_edge * (1.0F / std::sqrt(longest_squared));//计算单位方向向量
+    const float angle_degrees = std::atan2(axis.x, axis.y) * 180.0F / CV_PI;//通常atan2(y, x)计算的是向量相对于x轴正方向的角度，此处参数位置调换计算的是相对于y轴的倾角
     if (std::abs(angle_degrees) > 30.0F) {
         return false;
-    }
+    }//将倾角过大的矩形框排除在待选lightbar之外
 
     bar.rectangle = rectangle;
     bar.top = rectangle.center - axis * (length / 2.0F);
