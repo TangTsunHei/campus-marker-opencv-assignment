@@ -242,22 +242,12 @@ FrameResult processFrame(const cv::Mat& frame) {
     // 白色灯条比较亮，阈值可以取 180~220，根据实际视频调
     cv::threshold(gray, image_progress_binary, 200, 255, cv::THRESH_BINARY);
     // 改动替换部分1----------------------------------------------------------^
-    // 第四步：形态学处理。闭运算等价于先膨胀、再腐蚀，能够连接
-    // 灯条内部的小断点；开运算等价于先腐蚀、再膨胀，用来删除小亮点。
-    // 这里把四步分别写出，方便新生观察 erode 和 dilate 的执行顺序。
-    const cv::Mat close_kernel =
-        cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 5));
-    cv::Mat image_progress_close_dilated;
-    cv::dilate(image_progress_binary, image_progress_close_dilated, close_kernel);
-    cv::Mat image_progress_closed;
-    cv::erode(image_progress_close_dilated, image_progress_closed, close_kernel);
-
-    const cv::Mat open_kernel =
-        cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    cv::Mat image_progress_open_eroded;
-    cv::erode(image_progress_closed, image_progress_open_eroded, open_kernel);
+    // 根据本次作业实际灯条的折角形状以及右上角的断裂，形态学部分直接采用闭运算，而不是先闭再开
     cv::Mat image_progress_morphology;
-    cv::dilate(image_progress_open_eroded, image_progress_morphology, open_kernel);
+    cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    // 闭运算：先膨胀后腐蚀，连接断口
+    cv::morphologyEx(image_progress_binary, image_progress_morphology,
+                 cv::MORPH_CLOSE, close_kernel);
 
     // 第五步：轮廓提取。每个白色连通区域给出一条外轮廓；
     // 使用掩膜副本，保留原掩膜用于阶段图。
