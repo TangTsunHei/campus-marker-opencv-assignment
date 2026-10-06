@@ -1,0 +1,5 @@
+build/
+output/
+*.jpg
+*.png
+!docs/assets/*.png

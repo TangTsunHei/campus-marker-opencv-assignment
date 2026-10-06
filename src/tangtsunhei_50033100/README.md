@@ -9,6 +9,13 @@ CMake >= 3.22  （在wsl ubuntu24.04上已验证，为3.28.3）
 OpenCV 4.6.0  （在wsl ubuntu24.04上已验证）
 C++17
 
+
+# 依赖安装方法:
+在全新环境中，请先执行以下命令安装必要依赖：
+bash:
+sudo apt update
+sudo apt install build-essential cmake libopencv-dev
+
 # 编译步骤：
 
 创建并进入构建目录：
