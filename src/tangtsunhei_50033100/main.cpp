@@ -45,7 +45,7 @@ FrameResult processFrame(const cv::Mat& frame) {
     cv::Mat binary;
     cv::threshold(gray, binary, 200, 255, cv::THRESH_BINARY);
 
-        // 4. 保留一点轻微的闭运算（仅用来平滑边缘或连接小断口，不需要连成整体）
+    // 4. 保留一点轻微的闭运算（仅用来平滑边缘或连接小断口，不需要连成整体）
     cv::Mat morphology;
     cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(binary, morphology, cv::MORPH_CLOSE, close_kernel);
