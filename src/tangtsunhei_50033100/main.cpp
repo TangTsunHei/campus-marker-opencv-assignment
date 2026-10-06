@@ -45,51 +45,68 @@ FrameResult processFrame(const cv::Mat& frame) {
     cv::Mat binary;
     cv::threshold(gray, binary, 200, 255, cv::THRESH_BINARY);
 
-    // 4. 闭运算，连接四个直角灯条及右上角断口
+        // 4. 保留一点轻微的闭运算（仅用来平滑边缘或连接小断口，不需要连成整体）
     cv::Mat morphology;
-    cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9));
+    cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(binary, morphology, cv::MORPH_CLOSE, close_kernel);
-    
-    //临时中间状态图片显示，用于找出问题步骤一遍后续调参
-    cv::imwrite("../output/debug_binary.jpg", binary);
-    cv::imwrite("../output/debug_morphology.jpg", morphology);
+
     // 5. 找轮廓
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(morphology.clone(), contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-    // 6. 找面积最大的轮廓
-    int max_idx = -1;
-    double max_area = 0.0;
-    for (int i = 0; i < (int)contours.size(); ++i) {
-        double area = cv::contourArea(contours[i]);
-        if (area > max_area) {
-            max_area = area;
-            max_idx = i;
+    // 6. 收集所有有效轮廓的点（过滤掉面积太小的噪点）
+    std::vector<cv::Point> all_points;
+    for (const auto& contour : contours) {
+        if (cv::contourArea(contour) > 50.0) { // 过滤掉微小噪点，只保留真实的灯条
+            all_points.insert(all_points.end(), contour.begin(), contour.end());
         }
     }
 
     bool detected = false;
     std::array<cv::Point2f, 4> corners;
 
-    // 7. 如果最大轮廓面积足够大，尝试拟合四边形
-    if (max_idx >= 0 && max_area > 1000.0) {  // 面积阈值根据分辨率调整
-        std::vector<cv::Point> approx;
-        double epsilon = 0.02 * cv::arcLength(contours[max_idx], true);
-        cv::approxPolyDP(contours[max_idx], approx, epsilon, true);
+    // 7. 如果收集到了足够多的点，开始求凸包并拟合四边形
+    if (all_points.size() > 10) { 
+        // 求凸包，把所有散落的 L 形灯条包成一个大四边形
+        std::vector<cv::Point> hull;
+        cv::convexHull(all_points, hull);
 
+        // 对凸包进行多边形逼近
+        std::vector<cv::Point> approx;
+        double epsilon = 0.02 * cv::arcLength(hull, true);
+        cv::approxPolyDP(hull, approx, epsilon, true);
+
+        // 如果拟合出 4 个点，说明完美
         if (approx.size() == 4) {
             detected = true;
             std::vector<cv::Point2f> pts;
             for (auto& p : approx) pts.push_back(cv::Point2f((float)p.x, (float)p.y));
 
-            // 排序四个点：先按 y 排序，再分别对上下两个点按 x 排序
+            // 排序四个点
             std::sort(pts.begin(), pts.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
                 return a.y < b.y;
             });
-            if (pts[0].x > pts[1].x) std::swap(pts[0], pts[1]); // 左上、右上
-            if (pts[2].x > pts[3].x) std::swap(pts[2], pts[3]); // 左下、右下
+            if (pts[0].x > pts[1].x) std::swap(pts[0], pts[1]);
+            if (pts[2].x > pts[3].x) std::swap(pts[2], pts[3]);
             // 顺序：左上、右上、右下、左下
-            corners = {pts[0], pts[1], pts[2], pts[3]};
+            corners = {pts[0], pts[1], pts[3], pts[2]};
+        } 
+        // 如果拟合不是4个点（形状不完美），使用最小外接旋转矩形兜底
+        else {
+            cv::RotatedRect rect = cv::minAreaRect(all_points);
+            // 面积太小则忽略
+            if (rect.size.area() > 2000.0) {
+                detected = true;
+                cv::Point2f vertices[4];
+                rect.points(vertices);
+                std::vector<cv::Point2f> pts(vertices, vertices + 4);
+                std::sort(pts.begin(), pts.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+                    return a.y < b.y;
+                });
+                if (pts[0].x > pts[1].x) std::swap(pts[0], pts[1]);
+                if (pts[2].x > pts[3].x) std::swap(pts[2], pts[3]);
+                corners = {pts[0], pts[1], pts[3], pts[2]};
+            }
         }
     }
 
