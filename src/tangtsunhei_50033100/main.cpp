@@ -49,7 +49,10 @@ FrameResult processFrame(const cv::Mat& frame) {
     cv::Mat morphology;
     cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9));
     cv::morphologyEx(binary, morphology, cv::MORPH_CLOSE, close_kernel);
-
+    
+    //临时中间状态图片显示，用于找出问题步骤一遍后续调参
+    cv::imwrite("../output/debug_binary.jpg", binary);
+    cv::imwrite("../output/debug_morphology.jpg", morphology);
     // 5. 找轮廓
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(morphology.clone(), contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
