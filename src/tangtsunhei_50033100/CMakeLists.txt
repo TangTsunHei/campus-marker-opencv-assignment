@@ -20,3 +20,8 @@ add_executable(armor_detect main.cpp)
 # 链接 OpenCV
 target_include_directories(armor_detect PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(armor_detect PRIVATE ${OpenCV_LIBS})
+
+# 新增标定程序的编译目标
+add_executable(calibrate_app calibrate.cpp)
+target_include_directories(calibrate_app PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(calibrate_app PRIVATE ${OpenCV_LIBS})
