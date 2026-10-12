@@ -6,10 +6,8 @@ void calibrateCameraFromVideo(const std::string& video_path) {
     cv::VideoCapture cap(video_path);
     if (!cap.isOpened()) return;
 
-   // 注意：参数是 7x7，不是 8x5
     cv::Size board_size(7, 7); 
-    // 方格物理尺寸，按 15mm 算
-    float square_size = 15.0f;  
+    float square_size = 30.0f;  
 
 
     std::vector<std::vector<cv::Point2f>> image_points;

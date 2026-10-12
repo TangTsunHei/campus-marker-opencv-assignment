@@ -13,6 +13,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <opencv2/calib3d.hpp>
 
 namespace fs = std::filesystem;
 
@@ -31,6 +32,27 @@ cv::Point pixelPoint(const cv::Point2f& point) {
 
 
 FrameResult processFrame(const cv::Mat& frame) {
+    //相机内参与畸变系数
+    cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << 
+        2381.880936292808, 0, 703.5203450103089,
+        0, 2381.585423971444, 564.6520086008919,
+        0, 0, 1);
+
+    cv::Mat dist_coeffs = (cv::Mat_<double>(1, 5) << 
+        -0.06133118507099268, 
+        0.3444098598125907, 
+        -0.0006743100031583014, 
+        -0.001041867108211561, 
+        -1.779847162219043);
+
+    // 装甲板尺寸 80x80mm，中心为原点
+    std::vector<cv::Point3f> object_points = {
+        {-40.0f, -40.0f, 0.0f}, // 左上
+        { 40.0f, -40.0f, 0.0f}, // 右上
+        { 40.0f,  40.0f, 0.0f}, // 右下
+        {-40.0f,  40.0f, 0.0f}  // 左下
+    };
+
     FrameResult result;
 
     // 1. 中值滤波去噪
@@ -129,7 +151,40 @@ FrameResult processFrame(const cv::Mat& frame) {
                     1.0, cv::Scalar(0, 0, 255), 2, cv::LINE_AA);
         result.armor_count = 0;
     }
-
+            // ================= 新增：PnP 位姿估计 =================
+         //将 std::array 转换为 std::vector，解决红线报错
+        std::vector<cv::Point2f> corners_vec(corners.begin(), corners.end());
+        cv::Mat rvec, tvec;
+        // 调用 solvePnP
+        bool pnp_success = cv::solvePnP(object_points, corners_vec, camera_matrix, dist_coeffs, rvec, tvec);
+        
+        if (pnp_success) {
+            // 合理性检查，如果距离小于100mm或大于5000mm，视为误检，不画坐标轴
+            double z_distance = std::abs(tvec.at<double>(2,0));
+            if (z_distance > 100 && z_distance < 5000){
+            // 定义 3D 坐标轴端点：原点 + X轴(50mm) + Y轴(50mm) + Z轴(50mm)
+            std::vector<cv::Point3f> axis_points = {
+                {0, 0, 0},      // 原点
+                {50, 0, 0},     // X 轴（红色）
+                {0, 50, 0},     // Y 轴（绿色）
+                {0, 0, 50}      // Z 轴（蓝色）
+            };
+            
+            // 将 3D 点投影回 2D 图像
+            std::vector<cv::Point2f> image_points_axis;
+            cv::projectPoints(axis_points, rvec, tvec, camera_matrix, dist_coeffs, image_points_axis);
+            
+            // 画出坐标轴 (BGR颜色)
+            cv::line(annotated, pixelPoint(image_points_axis[0]), pixelPoint(image_points_axis[1]), cv::Scalar(0, 0, 255), 3); // X轴 红
+            cv::line(annotated, pixelPoint(image_points_axis[0]), pixelPoint(image_points_axis[2]), cv::Scalar(0, 255, 0), 3); // Y轴 绿
+            cv::line(annotated, pixelPoint(image_points_axis[0]), pixelPoint(image_points_axis[3]), cv::Scalar(255, 0, 0), 3); // Z轴 蓝
+            
+            // （可选）在图像上写出距离
+            std::string dist_str = "Z: " + std::to_string(tvec.at<double>(2,0)).substr(0, 5) + "mm";
+            cv::putText(annotated, dist_str, pixelPoint(corners[0]) + cv::Point(0, 20), 
+                        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 0), 2);
+        }
+    }
     result.annotated = annotated;
     return result;
 }
