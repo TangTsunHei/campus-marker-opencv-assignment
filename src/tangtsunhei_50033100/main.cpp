@@ -75,7 +75,7 @@ FrameResult processFrame(const cv::Mat& frame) {
     // 5. 找轮廓
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(morphology.clone(), contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
+    //此处用morphology.clone()是为了避免对原始morphology图像进行修改，并方便测试阶段找bug
     // 6. 收集所有有效轮廓的点（过滤掉面积太小的噪点）
     std::vector<cv::Point> all_points;
     for (const auto& contour : contours) {
@@ -86,13 +86,14 @@ FrameResult processFrame(const cv::Mat& frame) {
 
     bool detected = false;
     std::array<cv::Point2f, 4> corners;
-
+    // 因为想要保证图像在不发生巨大形变的前提下，利用闭运算将L型灯条全部连成一圈几乎不可能，所以在AI介绍下，选用凸包处理
     // 7. 如果收集到了足够多的点，开始求凸包并拟合四边形
     if (all_points.size() > 10) { 
         // 求凸包，把所有散落的 L 形灯条包成一个大四边形
         std::vector<cv::Point> hull;
         cv::convexHull(all_points, hull);
-
+        //凸包的作用：它就像拿一根橡皮筋套住整个轮廓。
+        //不管边缘多么破碎、内部有多少空洞，计算凸包后，你会得到一个完整、平滑、实心且绝对向外凸的轮廓
         // 对凸包进行多边形逼近
         std::vector<cv::Point> approx;
         double epsilon = 0.02 * cv::arcLength(hull, true);
@@ -152,9 +153,9 @@ FrameResult processFrame(const cv::Mat& frame) {
         result.armor_count = 0;
     }
             // ================= 新增：PnP 位姿估计 =================
-         //将 std::array 转换为 std::vector，解决红线报错
+         //将 std::array 转换为 std::vector（因为solvePnp接收的是vector）
         std::vector<cv::Point2f> corners_vec(corners.begin(), corners.end());
-        cv::Mat rvec, tvec;
+        cv::Mat rvec, tvec;//对应旋转(描述装甲板相对于相机的姿态（比如向左倾斜 15 度）)与平移(描述装甲板中心在相机坐标系下的位置)
         // 调用 solvePnP
         bool pnp_success = cv::solvePnP(object_points, corners_vec, camera_matrix, dist_coeffs, rvec, tvec);
         
